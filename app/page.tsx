@@ -232,42 +232,58 @@ export default function SnakeGame() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <h1 className="text-4xl font-bold mb-4 text-gray-800">Snake Game</h1>
-      <div className="flex items-center gap-4 mb-4">
-        <div className="text-2xl font-semibold text-gray-700">Score: {score}</div>
-        <div className="flex items-center gap-2">
+      
+      
+      {/* 使用 flex row 来并排放置游戏和控制按钮 */}
+      <div className="flex flex-row items-start gap-6">
+       
+        {/* 游戏主区域 */}
+        <div className="flex flex-col items-center">
+          <h1 className="text-4xl font-bold mb-4 text-gray-800">Snake Game</h1>
+          <div className="text-2xl font-semibold text-gray-700 mb-4">Score: {score}</div>
+          <canvas
+            ref={canvasRef}
+            width={CANVAS_SIZE}
+            height={CANVAS_SIZE}
+            className="border-4 border-gray-300 rounded-lg shadow-lg bg-white focus:outline-none"
+            tabIndex={0}
+          />
+        </div>
+
+        {/* 右侧速度控制区域 */}
+        <div className="flex flex-col gap-4 bg-white p-4 rounded-lg shadow-lg">
+          <h3 className="text-lg font-semibold text-gray-700 text-center">Speed</h3>
           <button
             onClick={() => handleSpeedChange('increase')}
-            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
-                       transition-colors duration-200 focus:outline-none"
+            className="p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
+                     transition-colors duration-200 focus:outline-none flex items-center justify-center"
             title="Speed Up"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
             </svg>
+            <span className="ml-2"></span>
           </button>
-          <span className="text-sm text-gray-600">
+          
+          <div className="text-sm font-medium text-gray-600 text-center">
             Speed: {Math.round((INITIAL_SPEED / speed) * 100)}%
-          </span>
+          </div>
+          
           <button
             onClick={() => handleSpeedChange('decrease')}
-            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
-                       transition-colors duration-200 focus:outline-none"
+            className="p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
+                     transition-colors duration-200 focus:outline-none flex items-center justify-center"
             title="Slow Down"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
+            <span className="ml-2"></span>
           </button>
         </div>
       </div>
-      <canvas
-        ref={canvasRef}
-        width={CANVAS_SIZE}
-        height={CANVAS_SIZE}
-        className="border-4 border-gray-300 rounded-lg shadow-lg bg-white focus:outline-none"
-        tabIndex={0}
-      />
+
+      {/* Game Over 显示 */}
       {gameOver && (
         <div className="mt-4 text-center">
           <h2 className="text-3xl font-bold text-red-600 mb-4">Game Over!</h2>
@@ -280,6 +296,7 @@ export default function SnakeGame() {
           </button>
         </div>
       )}
+
       <div className="mt-4 text-gray-600 text-center">
         <p>Use arrow keys to control the snake</p>
       </div>
