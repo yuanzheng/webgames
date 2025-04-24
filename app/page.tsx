@@ -1,103 +1,244 @@
-import Image from "next/image";
+"use client";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-export default function Home() {
+// 定义类型
+type Position = {
+  x: number;
+  y: number;
+};
+
+type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
+
+const GRID_SIZE = 20;
+const CANVAS_SIZE = 400;
+const INITIAL_SPEED = 150;
+const INITIAL_POSITION = { x: 200, y: 200 };
+
+export default function SnakeGame() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // 修改 gameLoopRef 的定义，提供 null 作为初始值
+  const gameLoopRef = useRef<NodeJS.Timeout | null>(null);
+  const [snake, setSnake] = useState<Position[]>([INITIAL_POSITION]);
+  const [food, setFood] = useState<Position>({ x: 0, y: 0 });
+  const [direction, setDirection] = useState<Direction>('RIGHT');
+  const [score, setScore] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 生成食物的函数
+  const generateFood = useCallback(() => {
+    const newFood = {
+      x: Math.floor(Math.random() * (CANVAS_SIZE / GRID_SIZE)) * GRID_SIZE,
+      y: Math.floor(Math.random() * (CANVAS_SIZE / GRID_SIZE)) * GRID_SIZE
+    };
+    setFood(newFood);
+  }, []); // 不需要任何依赖
+
+  // 移动蛇
+  const moveSnake = useCallback(() => {
+    if (gameOver) return;
+
+    setSnake(currentSnake => {
+      const head = { ...currentSnake[0] };
+
+      // 计算新的头部位置
+      switch (direction) {
+        case 'UP':
+          head.y = (head.y - GRID_SIZE + CANVAS_SIZE) % CANVAS_SIZE;
+          break;
+        case 'DOWN':
+          head.y = (head.y + GRID_SIZE) % CANVAS_SIZE;
+          break;
+        case 'LEFT':
+          head.x = (head.x - GRID_SIZE + CANVAS_SIZE) % CANVAS_SIZE;
+          break;
+        case 'RIGHT':
+          head.x = (head.x + GRID_SIZE) % CANVAS_SIZE;
+          break;
+      }
+
+      // 检查是否撞到自己
+      if (currentSnake.slice(1).some(segment => segment.x === head.x && segment.y === head.y)) {
+        setGameOver(true);
+        return currentSnake;
+      }
+
+      const newSnake = [head, ...currentSnake];
+      
+      // 检查是否吃到食物
+      if (head.x === food.x && head.y === food.y) {
+        setScore(prev => prev + 10);
+        setTimeout(generateFood, 0); // 使用 setTimeout 延迟生成食物
+      } else {
+        newSnake.pop();
+      }
+
+      return newSnake;
+    });
+  }, [direction, food.x, food.y, gameOver]); // 明确指定依赖
+
+  // 绘制游戏
+  const drawGame = useCallback((ctx: CanvasRenderingContext2D) => {
+    // 清空画布
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+    // 绘制网格
+    ctx.strokeStyle = '#ddd';
+    for (let i = 0; i < CANVAS_SIZE; i += GRID_SIZE) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, CANVAS_SIZE);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, i);
+      ctx.lineTo(CANVAS_SIZE, i);
+      ctx.stroke();
+    }
+
+    // 绘制蛇
+    ctx.fillStyle = '#4CAF50';
+    snake.forEach((segment, index) => {
+      ctx.fillRect(segment.x, segment.y, GRID_SIZE - 1, GRID_SIZE - 1);
+      // 绘制蛇头
+      if (index === 0) {
+        ctx.fillStyle = '#388E3C';
+        ctx.fillRect(segment.x, segment.y, GRID_SIZE - 1, GRID_SIZE - 1);
+      }
+    });
+
+    // 绘制食物
+    ctx.fillStyle = '#FF5722';
+    ctx.beginPath();
+    ctx.arc(
+      food.x + GRID_SIZE/2,
+      food.y + GRID_SIZE/2,
+      GRID_SIZE/2 - 1,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }, [snake, food]);
+
+  // 键盘控制
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    event.preventDefault(); // 阻止默认行为
+    
+    const keyDirections: Record<string, Direction> = {
+      ArrowUp: 'UP',
+      ArrowDown: 'DOWN',
+      ArrowLeft: 'LEFT',
+      ArrowRight: 'RIGHT'
+    };
+
+    const newDirection = keyDirections[event.key];
+    if (!newDirection) return;
+
+    // 防止反向移动
+    const opposites: Record<Direction, Direction> = {
+      UP: 'DOWN',
+      DOWN: 'UP',
+      LEFT: 'RIGHT',
+      RIGHT: 'LEFT'
+    };
+
+    if (opposites[newDirection] !== direction) {
+      setDirection(newDirection);
+    }
+  }, [direction]);
+
+  // 重置游戏
+  const resetGame = useCallback(() => {
+    if (gameLoopRef.current) {
+      clearInterval(gameLoopRef.current);
+      gameLoopRef.current = null;
+    }
+    setSnake([INITIAL_POSITION]);
+    setDirection('RIGHT');
+    setScore(0);
+    setGameOver(false);
+    generateFood();
+  }, []);
+
+  // 初始化游戏
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // 初始生成食物
+    if (!food.x && !food.y) {
+      generateFood();
+    }
+
+    // 确保 canvas 获得焦点
+    canvas.focus();
+
+    // 游戏循环
+    const gameLoop = setInterval(() => {
+      if (!gameOver) {
+        moveSnake();
+        drawGame(ctx);
+      }
+    }, INITIAL_SPEED);
+
+    gameLoopRef.current = gameLoop;
+
+    // 使用 window 级别的事件监听
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      if (gameLoopRef.current) {
+        clearInterval(gameLoopRef.current);
+      }
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [gameOver, moveSnake, drawGame, handleKeyDown, food.x, food.y, generateFood]);
+
+  // 在 return 语句前添加错误检查
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-red-50 p-4">
+        <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
+        <p className="text-red-500">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+        >
+          Reload Game
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+      <h1 className="text-4xl font-bold mb-4 text-gray-800">Snake Game</h1>
+      <div className="mb-4 text-2xl font-semibold text-gray-700">Score: {score}</div>
+      <canvas
+        ref={canvasRef}
+        width={CANVAS_SIZE}
+        height={CANVAS_SIZE}
+        className="border-4 border-gray-300 rounded-lg shadow-lg bg-white focus:outline-none"
+        tabIndex={0}
+      />
+      {gameOver && (
+        <div className="mt-4 text-center">
+          <h2 className="text-3xl font-bold text-red-600 mb-4">Game Over!</h2>
+          <button
+            onClick={resetGame}
+            className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold
+                     hover:bg-green-600 transition-colors duration-200"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            Play Again
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+      <div className="mt-4 text-gray-600 text-center">
+        <p>Use arrow keys to control the snake</p>
+      </div>
     </div>
   );
 }
