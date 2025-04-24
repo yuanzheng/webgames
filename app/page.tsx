@@ -13,6 +13,9 @@ const GRID_SIZE = 20;
 const CANVAS_SIZE = 400;
 const INITIAL_SPEED = 150;
 const INITIAL_POSITION = { x: 200, y: 200 };
+const SPEED_MULTIPLIER = 0.5;
+const MIN_SPEED = 50;  // 最快速度
+const MAX_SPEED = 300; // 最慢速度
 
 export default function SnakeGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,6 +27,8 @@ export default function SnakeGame() {
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [speed, setSpeed] = useState(INITIAL_SPEED);
+
 
   // 生成食物的函数
   const generateFood = useCallback(() => {
@@ -160,6 +165,18 @@ export default function SnakeGame() {
     generateFood();
   }, []);
 
+
+  const handleSpeedChange = useCallback((type: 'increase' | 'decrease') => {
+    setSpeed(currentSpeed => {
+      const newSpeed = type === 'increase' 
+        ? currentSpeed * (1 - SPEED_MULTIPLIER)  // 加速（减少间隔时间）
+        : currentSpeed * (1 + SPEED_MULTIPLIER); // 减速（增加间隔时间）
+      
+      // 确保速度在合理范围内
+      return Math.min(Math.max(newSpeed, MIN_SPEED), MAX_SPEED);
+    });
+  }, []);
+
   // 初始化游戏
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -182,7 +199,7 @@ export default function SnakeGame() {
         moveSnake();
         drawGame(ctx);
       }
-    }, INITIAL_SPEED);
+    }, speed); // 使用当前速度
 
     gameLoopRef.current = gameLoop;
 
@@ -195,7 +212,7 @@ export default function SnakeGame() {
       }
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [gameOver, moveSnake, drawGame, handleKeyDown, food.x, food.y, generateFood]);
+  }, [gameOver, moveSnake, drawGame, handleKeyDown, food.x, food.y, generateFood, speed]); // 添加 speed 依赖
 
   // 在 return 语句前添加错误检查
   if (error) {
@@ -216,7 +233,34 @@ export default function SnakeGame() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
       <h1 className="text-4xl font-bold mb-4 text-gray-800">Snake Game</h1>
-      <div className="mb-4 text-2xl font-semibold text-gray-700">Score: {score}</div>
+      <div className="flex items-center gap-4 mb-4">
+        <div className="text-2xl font-semibold text-gray-700">Score: {score}</div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleSpeedChange('increase')}
+            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
+                       transition-colors duration-200 focus:outline-none"
+            title="Speed Up"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+          </button>
+          <span className="text-sm text-gray-600">
+            Speed: {Math.round((INITIAL_SPEED / speed) * 100)}%
+          </span>
+          <button
+            onClick={() => handleSpeedChange('decrease')}
+            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
+                       transition-colors duration-200 focus:outline-none"
+            title="Slow Down"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+      </div>
       <canvas
         ref={canvasRef}
         width={CANVAS_SIZE}
