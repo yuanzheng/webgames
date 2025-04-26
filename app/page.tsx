@@ -184,12 +184,15 @@ export default function SnakeGame() {
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to save score');
+        throw new Error(data.error || 'Failed to save score');
       }
 
       setSaveStatus({ isSaving: false, error: null });
       alert('Score saved successfully!');
+      setPlayerName('');
     } catch (error) {
       console.error('Error saving score:', error);
       setSaveStatus({ 
