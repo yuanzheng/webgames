@@ -9,6 +9,12 @@ type Position = {
 
 type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 
+type SaveStatus = {
+  isSaving: boolean;
+  error: string | null;
+};
+
+
 const GRID_SIZE = 20;
 const CANVAS_SIZE = 400;
 const INITIAL_SPEED = 150;
@@ -29,7 +35,17 @@ export default function SnakeGame() {
   const [error, setError] = useState<string | null>(null);
   const [speed, setSpeed] = useState(INITIAL_SPEED);
 
-
+  // 添加新的状态
+  const [countdown, setCountdown] = useState(10);
+  const [isSaving, setIsSaving] = useState(false);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const [playerName, setPlayerName] = useState<string>('');
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ isSaving: false, error: null });
+ 
+  // 添加处理输入的函数
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPlayerName(e.target.value);
+  };
   // 生成食物的函数
   const generateFood = useCallback(() => {
     const newFood = {
@@ -127,8 +143,6 @@ export default function SnakeGame() {
 
   // 键盘控制
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    event.preventDefault(); // 阻止默认行为
-    
     const keyDirections: Record<string, Direction> = {
       ArrowUp: 'UP',
       ArrowDown: 'DOWN',
@@ -149,8 +163,41 @@ export default function SnakeGame() {
 
     if (opposites[newDirection] !== direction) {
       setDirection(newDirection);
+      event.preventDefault(); // 只阻止方向键的默认行为
     }
   }, [direction]);
+
+  // 添加保存分数的函数
+  const saveScore = async () => {
+    if (!playerName || countdown === 0) return;
+    
+    try {
+      setSaveStatus({ isSaving: true, error: null });
+      const response = await fetch('/api/scores', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playerName,
+          score,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save score');
+      }
+
+      setSaveStatus({ isSaving: false, error: null });
+      alert('Score saved successfully!');
+    } catch (error) {
+      console.error('Error saving score:', error);
+      setSaveStatus({ 
+        isSaving: false, 
+        error: 'Failed to save score' 
+      });
+    }
+  };
 
   // 重置游戏
   const resetGame = useCallback(() => {
@@ -163,6 +210,11 @@ export default function SnakeGame() {
     setScore(0);
     setGameOver(false);
     generateFood();
+
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+    }
+    setCountdown(10);
   }, []);
 
 
@@ -203,16 +255,43 @@ export default function SnakeGame() {
 
     gameLoopRef.current = gameLoop;
 
-    // 使用 window 级别的事件监听
-    window.addEventListener('keydown', handleKeyDown);
+    // 只在 canvas 上添加键盘事件监听
+    canvas.addEventListener('keydown', handleKeyDown);
 
     return () => {
       if (gameLoopRef.current) {
         clearInterval(gameLoopRef.current);
       }
-      window.removeEventListener('keydown', handleKeyDown);
+      canvas.removeEventListener('keydown', handleKeyDown);
     };
   }, [gameOver, moveSnake, drawGame, handleKeyDown, food.x, food.y, generateFood, speed]); // 添加 speed 依赖
+  
+  // 添加倒计时的 useEffect
+  useEffect(() => {
+    if (gameOver) {
+      // 初始化倒计时
+      setCountdown(10);
+      countdownRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            if (countdownRef.current) {
+              clearInterval(countdownRef.current);
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    // 清理函数
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+    };
+  }, [gameOver]); // 只依赖 gameOver 状态
 
   // 在 return 语句前添加错误检查
   if (error) {
@@ -287,13 +366,44 @@ export default function SnakeGame() {
       {gameOver && (
         <div className="mt-4 text-center">
           <h2 className="text-3xl font-bold text-red-600 mb-4">Game Over!</h2>
-          <button
-            onClick={resetGame}
-            className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold
-                     hover:bg-green-600 transition-colors duration-200"
-          >
-            Play Again
-          </button>
+          <div className="flex flex-col items-center gap-4 mb-4">
+            <input
+              type="text"
+              value={playerName}
+              onChange={handleNameChange}
+              placeholder="Enter your name"
+              className="px-4 py-2 border border-gray-300 rounded-lg 
+                      focus:outline-none focus:ring-2 focus:ring-blue-500
+                      w-64" // 增加输入框宽度
+              maxLength={50}
+              autoFocus // 自动聚焦
+            />
+            <div className="text-lg text-gray-600">
+              Time to save: {countdown}s
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <button
+              onClick={resetGame}
+              className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold
+                      hover:bg-green-600 transition-colors duration-200"
+            >
+              Play Again
+            </button>
+            <button
+              onClick={saveScore}
+              disabled={countdown === 0 || saveStatus.isSaving}
+              className={`px-6 py-3 rounded-lg font-bold transition-colors duration-200
+                ${countdown === 0 || saveStatus.isSaving
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
+            >
+              {saveStatus.isSaving ? 'Saving...' : 'Save Score'}
+            </button>
+          </div>
+          {saveStatus.error && (
+            <div className="mt-2 text-red-500">{saveStatus.error}</div>
+          )}
         </div>
       )}
 
