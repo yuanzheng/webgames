@@ -39,6 +39,13 @@ export default function RootLayout({
           })(window, document, "clarity", "script", "rb6h5bs5ep");
           `}
         </Script>
+        <footer className="w-full py-4 mt-auto bg-gray-100">
+          <div className="container mx-auto text-center text-gray-600">
+            <p>
+              © {new Date().getFullYear()} yTechTrade. All rights reserved.
+            </p>
+          </div>
+        </footer>
       </body>
     </html>
   );
